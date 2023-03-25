@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MyNoteBook - A Simple Notes App</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+      integrity="sha384-aFq/bzH65dt+w6FI2ooMVUpc+21e0SRygnTpmBvdBgSdnuTN7QbdgL+OapgHtvPp"
+      crossorigin="anonymous"
+    />
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg bg-body-tertiary">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="/">MyNoteBook</a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarSupportedContent"
+          aria-controls="navbarSupportedContent"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+          <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+            <li class="nav-item">
+              <a class="nav-link active" aria-current="page" href="/">Home</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/about">About</a>
+            </li>
+          </ul>
+          <div class="d-flex" role="search">
+            <a href="/login"
+              ><button class="btn btn-primary mx-2" type="submit">Login</button>
+            </a>
+            <a href="/signup"
+              ><button class="btn btn-primary mx-2" type="submit">
+                Signup
+              </button></a
+            >
+          </div>
+        </div>
+      </div>
+    </nav>
+    <div class="container">
+      <h1 class="my-4">Add a Note</h1>
+      <div>
+        <div class="mb-3">
+          <label for="title" class="form-label">Title</label>
+          <input
+            type="text"
+            class="form-control"
+            id="title"
+            aria-describedby="titleHelp"
+          />
+          <div id="titleHelp" class="form-text">Try to ad a cathy title.</div>
+        </div>
+        <div class="mb-3">
+          <label for="desc" class="form-label">Description</label>
+          <textarea type="text" class="form-control" id="desc"></textarea>
+        </div>
+        <button id="submit" type="submit" class="btn btn-primary">
+          Submit
+        </button>
+      </div>
+      <h1 class="my-4">Your Notes</h1>
+      <div class="mynotes row"></div>
+    </div>
+
+    <script
+      src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha2/dist/js/bootstrap.bundle.min.js"
+      integrity="sha384-qKXV1j0HvMUeCBQ+QVp7JcfGl760yU08IQ+GpUo5hlbpg51QRiuqHAJz8+BrxE/N"
+      crossorigin="anonymous"
+    ></script>
+    <script>
+      async function postData(url, data) {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(data),
+        });
+        return await response.json();
+      }
+
+      function getAndDisplayNotes() {
+        // Get user information from local storage
+        const user = JSON.parse(localStorage.getItem("user"));
+
+        // Check if user is logged in
+        if (user && user.email) {
+          // Make a POST request to retrieve the user's notes
+          postData("/getnotes", { email: user.email })
+            .then(({ notes }) => {
+              //check note
+              console.log(notes);
+
+              // Select the note container
+              const noteContainer = document.querySelector(".mynotes");
+
+              // Update the note container with the retrieved notes
+              noteContainer.innerHTML = notes
+                .map(
+                  (note) => `
+      <div class="card mx-2" style="width: 18rem">
+        <div class="card-body">
+          <h5 class="card-title">${note.title}</h5>
+          <p class="card-text">${note.desc}</p>
+          <a href="#" class="card-link" onclick="deleteNote('${note._id}')">Delete</a>
+          <a href="#" class="card-link" onclick="toggleUpdate('${note._id}')">Update</a>
+          <div class="update-form" id="update-form-${note._id}" style="display: none">
+            <input type="text" class="form-control mb-2 mr-sm-2" id="update-desc-${note._id}" value="${note.desc}">
+            <button class="btn btn-primary mb-2" onclick="updateNote('${note._id}')">Save</button>
+          </div>
+        </div>
+      </div>
+    `
+                )
+                .join("");
+            })
+            .catch(() => alert("Failed to get notes"));
+        } else {
+          alert("Please log in first");
+        }
+      }
+
+      function toggleUpdate(noteId) {
+        const updateForm = document.getElementById(`update-form-${noteId}`);
+        updateForm.style.display =
+          updateForm.style.display === "none" ? "block" : "none";
+      }
+
+      async function updateNote(noteId) {
+        const desc = document.getElementById(`update-desc-${noteId}`).value;
+        const userToken = localStorage.getItem("userToken");
+        try {
+          const response = await postData("/updatenote", {
+            userToken,
+            noteId,
+            newNote: desc, // use desc variable instead of newNote
+          });
+          if (response.success) {
+            alert("Note updated successfully");
+            getAndDisplayNotes();
+          }
+        } catch {
+          alert("Failed to update note");
+        }
+      }
+
+      async function addNote() {
+        const title = document.getElementById("title").value;
+        const desc = document.getElementById("desc").value;
+        const email = JSON.parse(localStorage.getItem("user"))?.email;
+        console.log("Submitting this data", title, desc, email);
+        try {
+          const response = await postData("/addnote", { title, desc, email });
+          if (response.success) {
+            alert("Note created successfully");
+            document.getElementById("title").value = "";
+            document.getElementById("desc").value = "";
+            getAndDisplayNotes();
+          }
+        } catch {
+          alert("Failed to add note");
+        }
+      }
+
+      async function deleteNote(noteId) {
+        const userToken = JSON.parse(localStorage.getItem("userToken"));
+        try {
+          const response = await postData("/deletenote", { userToken, noteId });
+          if (response.success) {
+            alert("Note deleted successfully");
+            getAndDisplayNotes();
+          }
+        } catch {
+          alert("Failed to delete note");
+        }
+      }
+
+      window.addEventListener("load", () => {
+        getAndDisplayNotes();
+        document.getElementById("submit").addEventListener("click", addNote);
+      });
+    </script>
+  </body>
+</html>
